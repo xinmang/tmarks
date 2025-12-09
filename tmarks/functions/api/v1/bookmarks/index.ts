@@ -44,9 +44,30 @@ export const onRequestGet: PagesFunction<Env, RouteParams, AuthContext>[] = [
       const tagIds = url.searchParams.get('tags')?.split(',').filter(Boolean) || []
       const pageSize = Math.min(parseInt(url.searchParams.get('page_size') || '30'), 100)
       const pageCursor = url.searchParams.get('page_cursor') || ''
-      const sortBy = url.searchParams.get('sort') || 'created' // created, updated, pinned
+      const sortBy = url.searchParams.get('sort') || 'created' // created, updated, pinned, popular
       const isArchived = url.searchParams.get('archived') === 'true'
       const isPinned = url.searchParams.get('pinned') === 'true'
+
+      // 解析复合游标（格式：isPinned|sortValue|id 或 isPinned|sortValue1|sortValue2|id）
+      let cursorIsPinned: string | null = null
+      let cursorSortValue: string | null = null
+      let cursorSortValue2: string | null = null
+      let cursorId: string | null = null
+      if (pageCursor && pageCursor.includes('|')) {
+        const parts = pageCursor.split('|')
+        if (parts.length === 4) {
+          // popular 模式：isPinned|click_count|last_clicked_at|id
+          cursorIsPinned = parts[0]
+          cursorSortValue = parts[1]
+          cursorSortValue2 = parts[2]
+          cursorId = parts[3]
+        } else if (parts.length === 3) {
+          // 其他模式：isPinned|sortValue|id
+          cursorIsPinned = parts[0]
+          cursorSortValue = parts[1]
+          cursorId = parts[2]
+        }
+      }
 
       // 初始化缓存服务
       const cache = new CacheService(context.env)
@@ -105,31 +126,97 @@ export const onRequestGet: PagesFunction<Env, RouteParams, AuthContext>[] = [
         conditionParams.push(searchPattern, searchPattern, searchPattern)
       }
 
-      // 游标分页（基于 ID）
-      if (pageCursor) {
-        conditions.push('b.id < ?')
-        conditionParams.push(pageCursor)
+      // 复合游标分页（包含 is_pinned + 排序字段 + ID）
+      if (cursorIsPinned !== null && cursorSortValue && cursorId) {
+        // 所有排序都以 is_pinned DESC 开头，需要考虑这个字段
+        switch (sortBy) {
+          case 'updated':
+            // (is_pinned < ?) OR (is_pinned = ? AND (updated_at < ? OR (updated_at = ? AND id < ?)))
+            conditions.push(
+              '((b.is_pinned < ?) OR ' +
+              '(b.is_pinned = ? AND (b.updated_at < ? OR (b.updated_at = ? AND b.id < ?))))'
+            )
+            conditionParams.push(cursorIsPinned, cursorIsPinned, cursorSortValue, cursorSortValue, cursorId)
+            break
+          case 'popular':
+            // 四字段游标：isPinned|click_count|last_clicked_at|id
+            if (cursorSortValue2 !== null) {
+              // 处理 last_clicked_at 可能为 NULL 的情况
+              // SQLite 中 NULL 比较需要特殊处理
+              if (cursorSortValue2 === '') {
+                // last_clicked_at 为 NULL 的情况
+                conditions.push(
+                  '((b.is_pinned < ?) OR ' +
+                  '(b.is_pinned = ? AND (' +
+                    '(b.click_count < ?) OR ' +
+                    '(b.click_count = ? AND (b.last_clicked_at IS NOT NULL OR (b.last_clicked_at IS NULL AND b.id < ?)))' +
+                  ')))'
+                )
+                conditionParams.push(
+                  cursorIsPinned, cursorIsPinned,
+                  cursorSortValue, cursorSortValue, cursorId
+                )
+              } else {
+                // last_clicked_at 有值的情况
+                conditions.push(
+                  '((b.is_pinned < ?) OR ' +
+                  '(b.is_pinned = ? AND (' +
+                    '(b.click_count < ?) OR ' +
+                    '(b.click_count = ? AND (' +
+                      '(b.last_clicked_at IS NULL) OR ' +
+                      '(b.last_clicked_at < ?) OR ' +
+                      '(b.last_clicked_at = ? AND b.id < ?)' +
+                    '))' +
+                  ')))'
+                )
+                conditionParams.push(
+                  cursorIsPinned, cursorIsPinned,
+                  cursorSortValue, cursorSortValue,
+                  cursorSortValue2, cursorSortValue2, cursorId
+                )
+              }
+            }
+            break
+          case 'created':
+          case 'pinned':
+          default:
+            // (is_pinned < ?) OR (is_pinned = ? AND (created_at < ? OR (created_at = ? AND id < ?)))
+            conditions.push(
+              '((b.is_pinned < ?) OR ' +
+              '(b.is_pinned = ? AND (b.created_at < ? OR (b.created_at = ? AND b.id < ?))))'
+            )
+            conditionParams.push(cursorIsPinned, cursorIsPinned, cursorSortValue, cursorSortValue, cursorId)
+            break
+        }
       }
 
       // 如果有标签筛选，使用标签交集查询
-      let query = `
-        SELECT DISTINCT b.*
-        FROM bookmarks b
-      `
+      let query: string
       let params: SQLParam[] = []
 
       if (tagIds.length > 0) {
-        query += `
-          INNER JOIN bookmark_tags bt ON b.id = bt.bookmark_id
-          WHERE bt.tag_id IN (${tagIds.map(() => '?').join(',')})
-            AND ${conditions.join(' AND ')}
-          GROUP BY b.id
-          HAVING COUNT(DISTINCT bt.tag_id) = ?
+        // 使用子查询确保分页准确，避免 GROUP BY 导致的排序不稳定
+        query = `
+          SELECT b.*
+          FROM bookmarks b
+          WHERE b.id IN (
+            SELECT bt.bookmark_id
+            FROM bookmark_tags bt
+            WHERE bt.tag_id IN (${tagIds.map(() => '?').join(',')})
+            GROUP BY bt.bookmark_id
+            HAVING COUNT(DISTINCT bt.tag_id) = ?
+          )
+          AND ${conditions.join(' AND ')}
         `
-        // 参数顺序：tagIds, conditionParams, tagIds.length
-        params = [...tagIds, ...conditionParams, tagIds.length]
+        // 参数顺序：tagIds, tagIds.length, conditionParams
+        params = [...tagIds, tagIds.length, ...conditionParams]
       } else {
-        query += ` WHERE ${conditions.join(' AND ')}`
+        // 无标签筛选，直接查询
+        query = `
+          SELECT b.*
+          FROM bookmarks b
+          WHERE ${conditions.join(' AND ')}
+        `
         params = conditionParams
       }
 
@@ -161,8 +248,27 @@ export const onRequestGet: PagesFunction<Env, RouteParams, AuthContext>[] = [
       const hasMore = results.length > pageSize
       const bookmarks = hasMore ? results.slice(0, pageSize) : results
 
-      // 获取下一页游标（最后一条记录的 ID）
-      const nextCursor = hasMore && bookmarks.length > 0 ? String(bookmarks[bookmarks.length - 1].id) : null
+      // 获取下一页游标（复合游标：isPinned|sortValue|id）
+      let nextCursor: string | null = null
+      if (hasMore && bookmarks.length > 0) {
+        const lastBookmark = bookmarks[bookmarks.length - 1]
+        const isPinnedValue = lastBookmark.is_pinned ? '1' : '0'
+
+        switch (sortBy) {
+          case 'updated':
+            nextCursor = `${isPinnedValue}|${lastBookmark.updated_at}|${lastBookmark.id}`
+            break
+          case 'popular':
+            // 四字段游标：is_pinned|click_count|last_clicked_at|id
+            nextCursor = `${isPinnedValue}|${lastBookmark.click_count || 0}|${lastBookmark.last_clicked_at || ''}|${lastBookmark.id}`
+            break
+          case 'created':
+          case 'pinned':
+          default:
+            nextCursor = `${isPinnedValue}|${lastBookmark.created_at}|${lastBookmark.id}`
+            break
+        }
+      }
 
       // 优化：使用单次查询获取所有书签的标签
       const bookmarkIds = bookmarks.map(b => b.id)

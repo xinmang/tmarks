@@ -8,7 +8,8 @@ export function useTagFiltering(
   tags: Tag[],
   bookmarks: Bookmark[],
   selectedTags: string[],
-  searchQuery: string
+  searchQuery: string,
+  serverRelatedTagIds?: string[] // 后端返回的相关标签ID（基于所有书签）
 ) {
   // 计算标签共现关系
   const coOccurrenceMap = useMemo(() => {
@@ -45,6 +46,12 @@ export function useTagFiltering(
   const relatedTagIds = useMemo(() => {
     if (selectedTags.length === 0) return new Set<string>()
 
+    // 优先使用后端返回的相关标签（基于所有书签，更准确）
+    if (serverRelatedTagIds && serverRelatedTagIds.length > 0) {
+      return new Set(serverRelatedTagIds)
+    }
+
+    // 降级方案：基于当前已加载的书签计算（可能不完整）
     if (selectedTags.length === 1) {
       const neighbors = coOccurrenceMap.get(selectedTags[0]!)
       if (!neighbors) return new Set<string>()
@@ -70,7 +77,7 @@ export function useTagFiltering(
     })
 
     return related
-  }, [selectedTags, coOccurrenceMap])
+  }, [selectedTags, coOccurrenceMap, serverRelatedTagIds])
 
   // 搜索筛选
   const filteredTags = useMemo(() => {

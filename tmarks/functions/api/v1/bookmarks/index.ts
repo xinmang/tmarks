@@ -343,6 +343,36 @@ export const onRequestGet: PagesFunction<Env, RouteParams, AuthContext>[] = [
         snapshot_count: snapshotCounts.get(bookmark.id) || 0,
       }))
 
+      // 获取相关标签（当有标签筛选时）
+      let relatedTagIds: string[] = []
+      if (tagIds.length > 0) {
+        try {
+          // 查询所有符合条件的书签的相关标签
+          const relatedQuery = `
+            SELECT DISTINCT t.id
+            FROM tags t
+            INNER JOIN bookmark_tags bt ON t.id = bt.tag_id
+            WHERE bt.bookmark_id IN (
+              SELECT bt2.bookmark_id
+              FROM bookmark_tags bt2
+              WHERE bt2.tag_id IN (${tagIds.map(() => '?').join(',')})
+              GROUP BY bt2.bookmark_id
+              HAVING COUNT(DISTINCT bt2.tag_id) = ?
+            )
+            AND t.id NOT IN (${tagIds.map(() => '?').join(',')})
+            AND t.deleted_at IS NULL
+          `
+          const relatedParams = [...tagIds, tagIds.length, ...tagIds]
+          const { results: relatedTags } = await context.env.DB.prepare(relatedQuery)
+            .bind(...relatedParams)
+            .all<{ id: string }>()
+
+          relatedTagIds = (relatedTags || []).map(t => t.id)
+        } catch (err) {
+          console.error('Failed to fetch related tags:', err)
+        }
+      }
+
       const responseData = {
         bookmarks: bookmarksWithTags,
         meta: {
@@ -350,6 +380,7 @@ export const onRequestGet: PagesFunction<Env, RouteParams, AuthContext>[] = [
           count: bookmarks.length,
           next_cursor: nextCursor,
           has_more: hasMore,
+          related_tag_ids: relatedTagIds, // 添加相关标签ID列表
         },
       }
 

@@ -18,7 +18,8 @@ interface TagSidebarProps {
   availableTags?: Tag[]
   tagSortBy?: 'usage' | 'name' | 'clicks'
   onTagSortChange?: (sortBy: 'usage' | 'name' | 'clicks') => void
-  searchQuery?: string  // 新增：外部搜索关键词
+  searchQuery?: string  // 外部搜索关键词
+  relatedTagIds?: string[] // 后端返回的相关标签ID
 }
 
 export function TagSidebar({
@@ -31,7 +32,8 @@ export function TagSidebar({
   availableTags,
   tagSortBy: externalTagSortBy,
   onTagSortChange,
-  searchQuery: externalSearchQuery = '',  // 新增：接收外部搜索关键词
+  searchQuery: externalSearchQuery = '',
+  relatedTagIds: serverRelatedTagIds,
 }: TagSidebarProps) {
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showManageModal, setShowManageModal] = useState(false)
@@ -49,12 +51,12 @@ export function TagSidebar({
   const isTagLoading = availableTags ? false : isLoading
 
   // 使用自定义 Hook 处理标签筛选逻辑
-  // 使用外部传入的搜索关键词
   const { orderedTags, relatedTagIds } = useTagFiltering(
     tags,
     bookmarks,
     selectedTags,
-    externalSearchQuery  // 使用外部搜索关键词
+    externalSearchQuery,
+    serverRelatedTagIds // 传递后端返回的相关标签ID
   )
 
   const handleToggleTag = async (tagId: string) => {

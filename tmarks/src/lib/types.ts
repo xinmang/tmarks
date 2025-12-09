@@ -115,6 +115,7 @@ export interface BookmarksResponse {
     count: number
     next_cursor?: string
     has_more: boolean
+    related_tag_ids?: string[] // 相关标签ID列表（当有标签筛选时）
   }
 }
 

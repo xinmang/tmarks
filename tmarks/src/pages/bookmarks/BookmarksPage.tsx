@@ -283,6 +283,12 @@ export function BookmarksPage() {
     return Array.from(uniqueBookmarksMap.values())
   }, [bookmarksQuery.data])
 
+  // 从第一页的 meta 中获取后端返回的相关标签ID
+  const serverRelatedTagIds = useMemo(() => {
+    const firstPageMeta = bookmarksQuery.data?.pages?.[0]?.meta
+    return firstPageMeta?.related_tag_ids
+  }, [bookmarksQuery.data?.pages])
+
   // 使用 useMemo 缓存可见性筛选结果
   const filteredBookmarks = useMemo(() => {
     if (visibilityFilter === 'all') return bookmarks
@@ -461,6 +467,7 @@ export function BookmarksPage() {
               bookmarks={filteredBookmarks}
               isLoadingBookmarks={isInitialLoading || isFetchingExisting}
               searchQuery={searchMode === 'tag' ? debouncedSearchKeyword : ''}
+              relatedTagIds={serverRelatedTagIds}
             />
           </aside>
 
@@ -716,6 +723,7 @@ export function BookmarksPage() {
                   }}
                   tagLayout={tagLayout}
                   onTagLayoutChange={handleTagLayoutChange}
+                  relatedTagIds={serverRelatedTagIds}
                   bookmarks={filteredBookmarks}
                   isLoadingBookmarks={isInitialLoading || isFetchingExisting}
                   searchQuery={searchMode === 'tag' ? debouncedSearchKeyword : ''}

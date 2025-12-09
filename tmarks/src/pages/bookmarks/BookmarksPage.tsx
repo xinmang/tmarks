@@ -476,7 +476,7 @@ export function BookmarksPage() {
             {/* 固定的顶部操作栏 */}
             <div className="flex-shrink-0 px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6 pb-3 sm:pb-4 w-full">
               {/* 顶部操作栏 */}
-              <div className="card shadow-float w-full">
+              <div className="card shadow-float w-full overflow-visible">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 w-full">
                   {/* 移动端标签抽屉按钮 + 搜索框 */}
                   <div className="flex items-center gap-3 flex-1 min-w-0 w-full sm:min-w-[280px]">
@@ -533,12 +533,12 @@ export function BookmarksPage() {
                   </div>
 
                   {/* 排序选择、视图切换和新增按钮 */}
-                  <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto overflow-x-auto scrollbar-hide pb-1 sm:pb-0">
+                  <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto overflow-x-visible scrollbar-hide pb-1 sm:pb-0">
                     <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                       {/* 排序按钮 - 点击循环切换 */}
                       <button
                         onClick={handleSortByChange}
-                        className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center transition-all shadow-float bg-muted text-foreground hover:bg-muted/80 touch-manipulation flex-shrink-0"
+                        className="btn btn-sm btn-ghost p-2 flex-shrink-0 touch-manipulation"
                         title={`${SORT_LABELS[sortBy]} (点击切换)`}
                         aria-label={`${SORT_LABELS[sortBy]} (点击切换)`}
                         type="button"
@@ -550,19 +550,20 @@ export function BookmarksPage() {
                       <button
                         onClick={() => {
                           // 循环切换：全部 -> 公开 -> 私密 -> 全部
-                          const nextFilter = visibilityFilter === 'all' 
-                            ? 'public' 
-                            : visibilityFilter === 'public' 
-                              ? 'private' 
+                          const nextFilter = visibilityFilter === 'all'
+                            ? 'public'
+                            : visibilityFilter === 'public'
+                              ? 'private'
                               : 'all'
                           setVisibilityFilter(nextFilter)
                         }}
-                        className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center transition-all shadow-float touch-manipulation flex-shrink-0 ${visibilityFilter === 'all'
-                          ? 'bg-muted text-foreground hover:bg-muted/80'
-                          : visibilityFilter === 'public'
-                            ? 'bg-success/10 text-success hover:bg-success/20'
-                            : 'bg-warning/10 text-warning hover:bg-warning/20'
-                          }`}
+                        className={`btn btn-sm p-2 flex-shrink-0 touch-manipulation ${
+                          visibilityFilter === 'all'
+                            ? 'btn-ghost'
+                            : visibilityFilter === 'public'
+                              ? 'text-success hover:bg-success/10'
+                              : 'text-warning hover:bg-warning/10'
+                        }`}
                         title={`${VISIBILITY_LABELS[visibilityFilter]} (点击切换)`}
                         aria-label={`${VISIBILITY_LABELS[visibilityFilter]} (点击切换)`}
                         type="button"
@@ -573,7 +574,7 @@ export function BookmarksPage() {
                       {/* 视图模式按钮 - 点击循环切换 */}
                       <button
                         onClick={handleViewModeChange}
-                        className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center transition-all shadow-float bg-muted text-foreground hover:bg-muted/80 touch-manipulation flex-shrink-0"
+                        className="btn btn-sm btn-ghost p-2 flex-shrink-0 touch-manipulation"
                         title={`${getViewModeLabel(viewMode)} (点击切换)`}
                         aria-label={`${getViewModeLabel(viewMode)} (点击切换)`}
                         type="button"
@@ -589,25 +590,24 @@ export function BookmarksPage() {
                             setSelectedIds([])
                           }
                         }}
-                        className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center transition-all shadow-float touch-manipulation flex-shrink-0 ${batchMode
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-foreground hover:bg-muted/80'
-                          }`}
+                        className={`btn btn-sm p-2 flex-shrink-0 touch-manipulation ${
+                          batchMode ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'btn-ghost'
+                        }`}
                         title={batchMode ? '退出批量操作' : '批量操作'}
                         aria-label={batchMode ? '退出批量操作' : '批量操作'}
                         type="button"
                       >
-                        <CheckCircle className="w-5 h-5" />
+                        <CheckCircle className="w-4 h-4" />
                       </button>
 
                       <button
                         onClick={() => handleOpenForm()}
-                        className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-primary to-secondary text-primary-content flex items-center justify-center shadow-float hover:shadow-xl transition-all hover:scale-105 active:scale-95 touch-manipulation flex-shrink-0"
+                        className="btn btn-sm btn-ghost p-2 flex-shrink-0 touch-manipulation"
                         title="新增书签"
                         aria-label="新增书签"
                         type="button"
                       >
-                        <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                         </svg>
                       </button>
